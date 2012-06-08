@@ -20,6 +20,7 @@ view.prototype.initialize = function() {
         'stylesheetAdd',
         'stylesheetDelete',
         'sortStylesheets',
+        'statusOpen',
         'statusClose',
         'colors',
         'colorOpen',
@@ -46,6 +47,7 @@ view.prototype.render = function(init) {
 };
 
 view.prototype.attach = function() {
+    this.statusOpen();
     this.statusClose();
     this.colors();
     return this;
@@ -118,11 +120,34 @@ view.prototype.makeStylesheet = function(model) {
         },
         onGutterClick: _(function(editor, line, ev) {
             if (model.errors[line]) {
-                this.$('.status').addClass('active');
+                this.statusOpen(ev, true);
                 this.$('.status .content').text(model.errors[line]);
                 return false;
             }
         }).bind(this)
+    });
+
+    var gutter = model.codemirror.getWrapperElement().getElementsByClassName("CodeMirror-gutter")[0];
+    var hoverElt, hoverLine;
+    CodeMirror.connect(gutter, "mouseover", function(e) {
+        if (e.target.nodeName.toLowerCase() != "pre") return;
+        var y = e.target.getBoundingClientRect().top + 4 + document.body.scrollTop;
+        var pos = model.codemirror.coordsChar({x: 0, y: y});
+        if (!pos) return;
+        hoverElt = e.target;
+        hoverLine = pos.line;
+
+        if (model.errors && model.errors[hoverLine]) {
+            self.statusOpen();
+            self.$('.status .content').text(model.errors[hoverLine]);
+            return false;
+        }
+    });
+    CodeMirror.connect(gutter, "mouseout", function(e) {
+        if (e.target != hoverElt) return;
+        if (!self.$('.status').hasClass('stayOpen'))
+            self.statusClose();
+        hoverElt = hoverLine = null;
     });
 
     var cartoCompleter = cartoCompletion(
@@ -195,8 +220,14 @@ view.prototype.sortStylesheets = function() {
     this.model.get('Stylesheet').trigger('change');
 };
 
+view.prototype.statusOpen = function(ev, stayOpen) {
+    this.$('.status').addClass('active');
+    if (stayOpen) this.$('.status').addClass('stayOpen');
+    return false;
+};
+
 view.prototype.statusClose = function(ev) {
-    this.$('.status').removeClass('active');
+    this.$('.status').removeClass('active stayOpen');
     return false;
 };
 
